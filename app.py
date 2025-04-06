@@ -3,7 +3,7 @@ import requests
 import json
 import os
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path='/static')
 
 # AllenAI API Endpoint
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -22,11 +22,8 @@ def upload_image():
     image_path = "static/temp.jpg"
     image.save(image_path)
 
-    # Upload Image to Imgur or Your Cloud and Get URL
-    # For now let's assume you already have an image URL after uploading
-    # Replace this with your uploaded image URL logic
-    image_url = "request.host_url + "static/temp.jpg"
-"
+    # Generate Image URL
+    image_url = request.host_url + "static/temp.jpg"
 
     question = "What is in this image?"
 
