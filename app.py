@@ -6,7 +6,7 @@ import os
 app = Flask(__name__, static_url_path='/static')
 
 # AllenAI API Endpoint
-API_URL = "https://openrouter.ai/api/v1/chat/completions"
+API_URL = "https://openrouter.ai/api/v1"
 API_KEY = "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"
 
 @app.route('/')
