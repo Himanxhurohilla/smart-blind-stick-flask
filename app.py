@@ -11,7 +11,7 @@ API_KEY = "sk-or-v1-ab9aeb1a06c590041bba640e79cfd24cf83b212403e849cca493dd2abc42
 
 @app.route('/')
 def home():
-    return "Smart Blind Stick Flask Server Running"
+    return "Smart Blind Stick Flask flask Server Running"
 
 @app.route('/upload', methods=['POST'])
 def upload_image():
