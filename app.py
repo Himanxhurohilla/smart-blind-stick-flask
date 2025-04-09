@@ -5,13 +5,13 @@ import os
 
 app = Flask(__name__, static_url_path='/static')
 
-# AllenAI API Endpoint
+# OpenRouter API Endpoint
 API_URL = "https://openrouter.ai/api/v1/"
 API_KEY = "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"
 
 @app.route('/')
 def home():
-    return "Smart Blind Stick Flask flask Server Running"
+    return "Smart Blind Stick Flask Server Running"
 
 @app.route('/upload', methods=['POST'])
 def upload_image():
@@ -27,7 +27,7 @@ def upload_image():
 
     question = "What is in this image?"
 
-    # Send request to AllenAI API
+    # Send request to Meta Llama 4 Maverick Model
     response = requests.post(
         API_URL,
         headers={
@@ -35,7 +35,7 @@ def upload_image():
             "Content-Type": "application/json"
         },
         data=json.dumps({
-            "model": "allenai/molmo-7b-d:free",
+            "model": "meta-llama/llama-4-maverick",
             "messages": [
                 {
                     "role": "user",
