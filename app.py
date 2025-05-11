@@ -41,7 +41,7 @@ def upload_image():
         response = requests.post(
             API_URL,
             headers={
-                "Authorization": f"Bearer {API_KEY}",  # Ensure "Bearer" prefix
+                "Authorization": f"Bearer {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}",  # Ensure "Bearer" prefix
                 "Content-Type": "application/json"
             },
             data=json.dumps({
