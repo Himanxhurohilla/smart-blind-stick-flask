@@ -41,7 +41,7 @@ def upload_image():
         response = requests.post(
             API_URL,
             headers={
-                "Authorization": API_KEY,
+                "Authorization": f"Bearer {API_KEY}",  # Ensure "Bearer" prefix
                 "Content-Type": "application/json"
             },
             data=json.dumps({
@@ -60,6 +60,7 @@ def upload_image():
 
         # Debugging: Log the response from OpenRouter API
         print("API Response Status Code:", response.status_code)
+        print("API Response Content-Type:", response.headers.get('Content-Type'))
         print("API Response Text:", response.text)
 
         if response.status_code == 200:
@@ -72,6 +73,7 @@ def upload_image():
         final_answer = f"Error while processing the image: {str(e)}"
 
     return jsonify({'response': final_answer})
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
