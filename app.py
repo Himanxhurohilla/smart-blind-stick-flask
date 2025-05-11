@@ -58,6 +58,10 @@ def upload_image():
             })
         )
 
+        # Debugging: Log the response from OpenRouter API
+        print("API Response Status Code:", response.status_code)
+        print("API Response Text:", response.text)
+
         if response.status_code == 200:
             ai_response = response.json()
             final_answer = ai_response['choices'][0]['message']['content']
