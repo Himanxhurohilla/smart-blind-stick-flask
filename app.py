@@ -11,48 +11,61 @@ API_KEY = "sk-or-v1-ab9aeb1a06c590041bba640e79cfd24cf83b212403e849cca493dd2abc42
 
 @app.route('/')
 def home():
-    return "Smart Blind Stick Flask Server9 Running"
+    return "Smart Blind Stick Flask Server Running"
 
 @app.route('/upload', methods=['POST'])
 def upload_image():
     if 'image' not in request.files:
-        return jsonify({'error': 'No image found'})
+        return jsonify({'error': 'No image found in request'}), 400
 
     image = request.files['image']
-    image_path = "static/temp.jpg"
-    image.save(image_path)
+    
+    # Ensure static directory exists
+    static_dir = os.path.join(app.root_path, 'static')
+    if not os.path.exists(static_dir):
+        os.makedirs(static_dir)
+
+    image_path = os.path.join(static_dir, "temp.jpg")
+    
+    try:
+        image.save(image_path)
+    except Exception as e:
+        return jsonify({'error': f"Failed to save image: {str(e)}"}), 500
 
     # Generate Image URL
     image_url = request.host_url + "static/temp.jpg"
-
     question = "What is in this image?"
 
-    # Send request to Meta Llama 4 Maverick Model
-    response = requests.post(
-        API_URL,
-        headers={
-            "Authorization": API_KEY,
-            "Content-Type": "application/json"
-        },
-        data=json.dumps({
-            "model": "meta-llama/llama-4-maverick",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": question},
-                        {"type": "image_url", "image_url": {"url": image_url}}
-                    ]
-                }
-            ]
-        })
-    )
+    try:
+        # Send request to Meta Llama 4 Maverick Model
+        response = requests.post(
+            API_URL,
+            headers={
+                "Authorization": API_KEY,
+                "Content-Type": "application/json"
+            },
+            data=json.dumps({
+                "model": "meta-llama/llama-4-maverick",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": question},
+                            {"type": "image_url", "image_url": {"url": image_url}}
+                        ]
+                    }
+                ]
+            })
+        )
 
-    if response.status_code == 200:
-        ai_response = response.json()
-        final_answer = ai_response['choices'][0]['message']['content']
-    else:
-        final_answer = "Unable to identify scene"
+        if response.status_code == 200:
+            ai_response = response.json()
+            final_answer = ai_response['choices'][0]['message']['content']
+        else:
+            final_answer = f"API Error: {response.status_code}, {response.text}"
+
+    except Exception as e:
+        final_answer = f"Error while processing the image: {str(e)}"
 
     return jsonify({'response': final_answer})
 
