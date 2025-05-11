@@ -2,16 +2,17 @@ from flask import Flask, request, jsonify
 import requests
 import json
 import os
+import base64
 
 app = Flask(__name__, static_url_path='/static')
 
-# OpenRouter API Endpoint
+# OpenRouter API Endpoint and Key
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 API_KEY = "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"
 
 @app.route('/')
 def home():
-    return "Smart Blind Stick Flasnk Servnner Running"
+    return "Smart Blind Stick Flask Server Running"
 
 @app.route('/upload', methods=['POST'])
 def upload_image():
@@ -20,11 +21,9 @@ def upload_image():
 
     image = request.files['image']
     
-    # Ensure static directory exists
+    # Save image temporarily
     static_dir = os.path.join(app.root_path, 'static')
-    if not os.path.exists(static_dir):
-        os.makedirs(static_dir)
-
+    os.makedirs(static_dir, exist_ok=True)
     image_path = os.path.join(static_dir, "temp.jpg")
     
     try:
@@ -32,35 +31,41 @@ def upload_image():
     except Exception as e:
         return jsonify({'error': f"Failed to save image: {str(e)}"}), 500
 
-    # Generate Image URL
-    image_url = request.host_url + "static/temp.jpg"
+    # Convert image to base64
+    try:
+        with open(image_path, "rb") as img_file:
+            encoded_image = base64.b64encode(img_file.read()).decode('utf-8')
+        image_data_url = f"data:image/jpeg;base64,{encoded_image}"
+    except Exception as e:
+        return jsonify({'error': f"Failed to encode image: {str(e)}"}), 500
+
     question = "What is in this image?"
 
+    # Create payload for LLaMA model
+    payload = {
+        "model": "meta-llama/llama-4-maverick",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": question},
+                    {"type": "image_url", "image_url": {"url": image_data_url}}
+                ]
+            }
+        ]
+    }
+
     try:
-        # Send request to Meta Llama 4 Maverick Model
         response = requests.post(
             API_URL,
             headers={
-                "Authorization": f"Bearer {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}",  # Ensure "Bearer" prefix
+                "Authorization": f"Bearer {API_KEY}",
                 "Content-Type": "application/json"
             },
-            data=json.dumps({
-                "model": "meta-llama/llama-4-maverick",
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": question},
-                            {"type": "image_url", "image_url": {"url": image_url}}
-                        ]
-                    }
-                ]
-            })
+            data=json.dumps(payload)
         )
 
-        # Debugging: Log the response from OpenRouter API
         print("API Response Status Code:", response.status_code)
-        print("API Response Content-Type:", response.headers.get('Content-Type'))
         print("API Response Text:", response.text)
 
         if response.status_code == 200:
