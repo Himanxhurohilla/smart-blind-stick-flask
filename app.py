@@ -39,7 +39,7 @@ def upload_image():
     except Exception as e:
         return jsonify({'error': f"Failed to encode image: {str(e)}"}), 500
 
-    question = "What is in this image?"
+    question = "You are assisting a blind person. Please describe in clear and simple spoken language what is visible in this image. Mention objects, people, obstacles, distance, and anything important that they should be aware of for navigation or safety.keep the response short and focused"
 
     # Create payload for LLaMA model
     payload = {
