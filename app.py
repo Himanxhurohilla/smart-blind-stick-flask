@@ -62,7 +62,8 @@ def upload_image():
                 "Authorization": f"Bearer {API_KEY}",
                 "Content-Type": "application/json"
             },
-            data=json.dumps(payload)
+            data=json.dumps(payload),
+    timeout=30
         )
 
         print("API Response Status Code:", response.status_code)
