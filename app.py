@@ -87,14 +87,14 @@ def upload_image():
 
     # --- Convert text to speech using OpenAI TTS ---
     try:
-        tts_response = openai.audio.speech.create(
-            model="gpt-4o-mini-tts",  # Lightweight TTS model
-            voice="alloy",
-            input=final_answer_text
-        )
-        audio_bytes = tts_response.audio
-    except Exception as e:
-        return jsonify({'error': f"TTS failed: {str(e)}"}), 500
+        tts_response = client.audio.speech.create(
+        model="gpt-4o-mini-tts",
+        voice="alloy",
+        input=final_answer_text
+    )
+    audio_bytes = tts_response.read()  # <-- important: read the binary audio data
+except Exception as e:
+    return jsonify({'error': f"TTS failed: {str(e)}"}), 500
 
     # Return the audio file
     return send_file(
