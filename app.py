@@ -4,7 +4,7 @@ import json
 import os
 import base64
 import io
-import openai  # For TTS
+from openai import OpenAI  # Modern OpenAI client
 
 app = Flask(__name__, static_url_path='/static')
 
@@ -12,8 +12,8 @@ app = Flask(__name__, static_url_path='/static')
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 API_KEY = "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"
 
-# OpenAI TTS key
-openai.api_key = "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"
+# Initialize OpenAI client using environment variable
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 @app.route('/')
 def home():
@@ -64,6 +64,7 @@ def upload_image():
         ]
     }
 
+    # --- Get AI response from OpenRouter ---
     try:
         response = requests.post(
             API_URL,
@@ -76,7 +77,6 @@ def upload_image():
 
         if response.status_code == 200:
             ai_response = response.json()
-            # Extract the text from LLaMA response
             final_answer = ai_response['choices'][0]['message']['content']
             if isinstance(final_answer, list):
                 final_answer_text = " ".join(
@@ -92,24 +92,20 @@ def upload_image():
 
     # --- Convert text to speech using OpenAI TTS ---
     try:
-        tts_response = openai.audio.speech.create(
+        output_path = os.path.join(app.root_path, "output.mp3")
+
+        # Stream and save TTS response
+        with client.audio.speech.with_streaming_response.create(
             model="gpt-4o-mini-tts",
             voice="alloy",
             input=final_answer_text
-        )
+        ) as tts_response:
+            tts_response.stream_to_file(output_path)
 
-        # Use .content to get binary audio data
-        audio_bytes = tts_response.content
+        return send_file(output_path, mimetype="audio/mpeg")
 
     except Exception as e:
         return jsonify({'error': f"TTS failed: {str(e)}"}), 500
-
-    # --- Return the audio file ---
-    return send_file(
-        io.BytesIO(audio_bytes),
-        mimetype="audio/mpeg",
-        download_name="speech.mp3"
-    )
 
 
 if __name__ == '__main__':
