@@ -13,7 +13,7 @@ API_URL = "https://openrouter.ai/api/v1/chat/completions"
 API_KEY = "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"
 
 # OpenAI TTS key
-openai.api_key = "tts-d62fc6e2335fcf98d75b0bac1a1a28df"
+openai.api_key = "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"
 
 @app.route('/')
 def home():
