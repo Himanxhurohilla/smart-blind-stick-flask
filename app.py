@@ -1,23 +1,18 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify
 import requests
 import json
 import os
 import base64
-import io
-from openai import OpenAI  # Modern OpenAI client
 
 app = Flask(__name__, static_url_path='/static')
 
-# --- API Keys ---
+# OpenRouter API Endpoint and Key
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 API_KEY = "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"
 
-# Initialize OpenAI client using environment variable
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
 @app.route('/')
 def home():
-    return "Smart Blind Stick Flask Server Running (final boss)"
+    return "Smart Blind Stick Flask Server Running"
 
 @app.route('/upload', methods=['POST'])
 def upload_image():
@@ -44,11 +39,7 @@ def upload_image():
     except Exception as e:
         return jsonify({'error': f"Failed to encode image: {str(e)}"}), 500
 
-    question = (
-        "You are assisting a blind person. Please describe in clear and simple spoken language "
-        "what is visible in this image. Mention objects, people, obstacles, distance, and "
-        "anything important they should be aware of for navigation or safety. Keep the response short."
-    )
+    question = "You are assisting a blind person. Please describe in clear and simple spoken language what is visible in this image. Mention objects, people, obstacles, distance, and anything important that they should be aware of for navigation or safety.keep the response short and focused"
 
     # Create payload for LLaMA model
     payload = {
@@ -64,7 +55,6 @@ def upload_image():
         ]
     }
 
-    # --- Get AI response from OpenRouter ---
     try:
         response = requests.post(
             API_URL,
@@ -75,37 +65,19 @@ def upload_image():
             data=json.dumps(payload)
         )
 
+        print("API Response Status Code:", response.status_code)
+        print("API Response Text:", response.text)
+
         if response.status_code == 200:
             ai_response = response.json()
             final_answer = ai_response['choices'][0]['message']['content']
-            if isinstance(final_answer, list):
-                final_answer_text = " ".join(
-                    [c.get("text", "") for c in final_answer if c.get("type") == "text"]
-                )
-            else:
-                final_answer_text = str(final_answer)
         else:
-            final_answer_text = f"API Error: {response.status_code}, {response.text}"
+            final_answer = f"API Error: {response.status_code}, {response.text}"
 
     except Exception as e:
-        final_answer_text = f"Error while processing the image: {str(e)}"
+        final_answer = f"Error while processing the image: {str(e)}"
 
-    # --- Convert text to speech using OpenAI TTS ---
-    try:
-        output_path = os.path.join(app.root_path, "output.mp3")
-
-        # Stream and save TTS response
-        with client.audio.speech.with_streaming_response.create(
-            model="gpt-4o-mini-tts",
-            voice="alloy",
-            input=final_answer_text
-        ) as tts_response:
-            tts_response.stream_to_file(output_path)
-
-        return send_file(output_path, mimetype="audio/mpeg")
-
-    except Exception as e:
-        return jsonify({'error': f"TTS failed: {str(e)}"}), 500
+    return jsonify({'response': final_answer})
 
 
 if __name__ == '__main__':
