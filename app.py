@@ -4,20 +4,20 @@ import json
 import os
 import base64
 import io
-import openai  # New import for OpenAI TTS
+import openai  # For TTS
 
 app = Flask(__name__, static_url_path='/static')
 
-# OpenRouter API Endpoint and Key
+# --- API Keys ---
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 API_KEY = "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"
 
-# OpenAI API key for TTS
-openai.api_key = "tts-d62fc6e2335fcf98d75b0bac1a1a28df"  # <-- Replace with your TTS key
+# OpenAI TTS key
+openai.api_key = "tts-d62fc6e2335fcf98d75b0bac1a1a28df"
 
 @app.route('/')
 def home():
-    return "Smart Blind Stick Flask Server Running final boss"
+    return "Smart Blind Stick Flask Server Running (final boss)"
 
 @app.route('/upload', methods=['POST'])
 def upload_image():
@@ -44,7 +44,11 @@ def upload_image():
     except Exception as e:
         return jsonify({'error': f"Failed to encode image: {str(e)}"}), 500
 
-    question = "You are assisting a blind person. Please describe in clear and simple spoken language what is visible in this image. Mention objects, people, obstacles, distance, and anything important that they should be aware of for navigation or safety. Keep the response short and focused."
+    question = (
+        "You are assisting a blind person. Please describe in clear and simple spoken language "
+        "what is visible in this image. Mention objects, people, obstacles, distance, and "
+        "anything important they should be aware of for navigation or safety. Keep the response short."
+    )
 
     # Create payload for LLaMA model
     payload = {
@@ -75,8 +79,9 @@ def upload_image():
             # Extract the text from LLaMA response
             final_answer = ai_response['choices'][0]['message']['content']
             if isinstance(final_answer, list):
-                # Sometimes content is returned as a list of dicts
-                final_answer_text = " ".join([c.get("text", "") for c in final_answer if c.get("type") == "text"])
+                final_answer_text = " ".join(
+                    [c.get("text", "") for c in final_answer if c.get("type") == "text"]
+                )
             else:
                 final_answer_text = str(final_answer)
         else:
@@ -87,16 +92,19 @@ def upload_image():
 
     # --- Convert text to speech using OpenAI TTS ---
     try:
-        tts_response = client.audio.speech.create(
-        model="gpt-4o-mini-tts",
-        voice="alloy",
-        input=final_answer_text
-    )
-    audio_bytes = tts_response.read()  # <-- important: read the binary audio data
-except Exception as e:
-    return jsonify({'error': f"TTS failed: {str(e)}"}), 500
+        tts_response = openai.audio.speech.create(
+            model="gpt-4o-mini-tts",
+            voice="alloy",
+            input=final_answer_text
+        )
 
-    # Return the audio file
+        # Use .content to get binary audio data
+        audio_bytes = tts_response.content
+
+    except Exception as e:
+        return jsonify({'error': f"TTS failed: {str(e)}"}), 500
+
+    # --- Return the audio file ---
     return send_file(
         io.BytesIO(audio_bytes),
         mimetype="audio/mpeg",
