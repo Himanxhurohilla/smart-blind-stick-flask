@@ -3,16 +3,18 @@ import requests
 import json
 import os
 import base64
+import uuid
+from gtts import gTTS
 
 app = Flask(__name__, static_url_path='/static')
 
-# OpenRouter API Endpoint and Key
+# --- OpenRouter API ---
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 API_KEY = "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"
 
 @app.route('/')
 def home():
-    return "Smart Blind Stick Flask Server Running"
+    return "Smart Blind Stick Flask Server Running with TTS"
 
 @app.route('/upload', methods=['POST'])
 def upload_image():
@@ -21,17 +23,17 @@ def upload_image():
 
     image = request.files['image']
     
-    # Save image temporarily
+    # --- Save uploaded image temporarily ---
     static_dir = os.path.join(app.root_path, 'static')
     os.makedirs(static_dir, exist_ok=True)
     image_path = os.path.join(static_dir, "temp.jpg")
-    
+
     try:
         image.save(image_path)
     except Exception as e:
         return jsonify({'error': f"Failed to save image: {str(e)}"}), 500
 
-    # Convert image to base64
+    # --- Convert image to Base64 for OpenRouter ---
     try:
         with open(image_path, "rb") as img_file:
             encoded_image = base64.b64encode(img_file.read()).decode('utf-8')
@@ -39,9 +41,15 @@ def upload_image():
     except Exception as e:
         return jsonify({'error': f"Failed to encode image: {str(e)}"}), 500
 
-    question = "You are assisting a blind person. Please describe in clear and simple spoken language what is visible in this image. Mention objects, people, obstacles, distance, and anything important that they should be aware of for navigation or safety.keep the response short and focused"
+    # --- AI prompt ---
+    question = (
+        "You are assisting a blind person. Please describe in clear and simple spoken language "
+        "what is visible in this image. Mention objects, people, obstacles, distance, and "
+        "anything important that they should be aware of for navigation or safety. "
+        "Keep the response short and focused."
+    )
 
-    # Create payload for LLaMA model
+    # --- OpenRouter Payload ---
     payload = {
         "model": "meta-llama/llama-4-maverick",
         "messages": [
@@ -56,6 +64,7 @@ def upload_image():
     }
 
     try:
+        # --- Call AI model ---
         response = requests.post(
             API_URL,
             headers={
@@ -77,8 +86,24 @@ def upload_image():
     except Exception as e:
         final_answer = f"Error while processing the image: {str(e)}"
 
-    return jsonify({'response': final_answer})
+    # --- Convert AI text response to speech using gTTS ---
+    try:
+        tts_filename = f"tts_{uuid.uuid4().hex}.mp3"
+        tts_filepath = os.path.join(static_dir, tts_filename)
 
+        tts = gTTS(text=final_answer, lang='en')
+        tts.save(tts_filepath)
+
+        audio_url = f"https://{request.host}/static/{tts_filename}"
+    except Exception as e:
+        audio_url = None
+        print("TTS Error:", str(e))
+
+    # --- Return both text + audio link ---
+    return jsonify({
+        'response': final_answer,
+        'audio_url': audio_url
+    })
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
