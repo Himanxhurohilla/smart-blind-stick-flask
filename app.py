@@ -10,7 +10,7 @@ app = Flask(__name__, static_url_path='/static')
 
 # --- OpenRouter API ---
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
-API_KEY = "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"
+API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 @app.route('/')
 def home():
