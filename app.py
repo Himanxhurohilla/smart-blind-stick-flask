@@ -1,114 +1,148 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify
 import requests
 import json
 import os
-import io
+import base64
+import uuid
 from gtts import gTTS
 from datetime import datetime
-import tempfile
 import firebase_admin
-from firebase_admin import credentials, storage, firestore
+from firebase_admin import credentials, firestore
 
-# Initialize Flask app
-app = Flask(__name__)
+app = Flask(__name__, static_url_path='/static')
 
-# --- API Keys & Config ---
+# --- OpenRouter API ---
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
-API_KEY = os.getenv("OPENROUTER_API_KEY")  # stored in Render Environment Variables
-FIREBASE_CRED_PATH = os.getenv("FIREBASE_CONFIG")  # Path or JSON string
+API_KEY = os.getenv("OPENROUTER_API_KEY")
 
-# --- Initialize Firebase ---
-if not firebase_admin._apps:
-    if FIREBASE_CRED_PATH and os.path.exists(FIREBASE_CRED_PATH):
-        cred = credentials.Certificate(FIREBASE_CRED_PATH)
-    else:
-        # Try initializing from JSON string (Render environment variable)
-        cred = credentials.Certificate(json.loads(FIREBASE_CRED_PATH))
-    firebase_admin.initialize_app(cred, {
-        'storageBucket': '<your-project-id>.appspot.com'  # Replace with your Firebase Storage bucket name
-    })
+# --- Firebase Initialization ---
+firebase_json = os.getenv("FIREBASE_CONFIG")
+if not firebase_json:
+    raise ValueError("FIREBASE_CONFIG environment variable is not set")
 
-db = firestore.client()
-bucket = storage.bucket()
+cred = credentials.Certificate(json.loads(firebase_json))
+firebase_admin.initialize_app(cred)
+db = firestore.client()  # Firestore client
 
-# --- Helper Functions ---
-
-def upload_to_firebase(local_path, remote_name):
-    """Uploads a file to Firebase Storage and returns the public URL."""
-    blob = bucket.blob(remote_name)
-    blob.upload_from_filename(local_path)
-    blob.make_public()
-    return blob.public_url
-
-
-# --- Routes ---
-
-@app.route('/process', methods=['POST'])
-def process_image():
-    try:
-        if 'image' not in request.files:
-            return jsonify({'error': 'No image file provided'}), 400
-
-        image = request.files['image']
-        if image.filename == '':
-            return jsonify({'error': 'Empty filename'}), 400
-
-        # Save image temporarily
-        temp_img = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
-        image.save(temp_img.name)
-
-        # Upload image to Firebase Storage
-        image_name = f"uploads/{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
-        image_url = upload_to_firebase(temp_img.name, image_name)
-
-        # Send image for AI processing
-        headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
-        payload = {
-            "model": "gpt-4o-mini",
-            "messages": [{"role": "user", "content": f"Describe this image: {image_url}"}]
-        }
-
-        ai_response = requests.post(API_URL, headers=headers, json=payload)
-        ai_response.raise_for_status()
-
-        result_text = ai_response.json()["choices"][0]["message"]["content"]
-
-        # Convert text to speech
-        tts = gTTS(text=result_text, lang='en')
-        temp_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-        tts.save(temp_audio.name)
-
-        # Upload audio to Firebase
-        audio_name = f"audio/{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp3"
-        audio_url = upload_to_firebase(temp_audio.name, audio_name)
-
-        # Store record in Firestore
-        db.collection('image_analysis').add({
-            'timestamp': datetime.now().isoformat(),
-            'image_url': image_url,
-            'audio_url': audio_url,
-            'description': result_text
-        })
-
-        # Cleanup
-        os.remove(temp_img.name)
-        os.remove(temp_audio.name)
-
-        # Return response
-        return jsonify({
-            'image_url': image_url,
-            'audio_url': audio_url,
-            'description': result_text
-        })
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
+# --- Home Route ---
 @app.route('/')
 def home():
-    return "Flask AI + Firebase Server is Running ✅"
+    return "Smart Blind Stick Flask Server Running with TTS and Firestore Integration"
 
+# --- Upload Route ---
+@app.route('/upload', methods=['POST'])
+def upload_image():
+    # --- Check for image ---
+    if 'image' not in request.files:
+        return jsonify({'error': 'No image found in request'}), 400
+
+    image = request.files['image']
+
+    # --- Save uploaded image temporarily ---
+    static_dir = os.path.join(app.root_path, 'static')
+    os.makedirs(static_dir, exist_ok=True)
+    image_path = os.path.join(static_dir, "temp.jpg")
+
+    try:
+        image.save(image_path)
+    except Exception as e:
+        return jsonify({'error': f"Failed to save image: {str(e)}"}), 500
+
+    # --- Convert image to Base64 for OpenRouter ---
+    try:
+        with open(image_path, "rb") as img_file:
+            encoded_image = base64.b64encode(img_file.read()).decode('utf-8')
+        image_data_url = f"data:image/jpeg;base64,{encoded_image}"
+    except Exception as e:
+        return jsonify({'error': f"Failed to encode image: {str(e)}"}), 500
+
+    # --- AI prompt ---
+    question = (
+        "You are assisting a blind person. Please describe in clear and simple spoken language "
+        "what is visible in this image. Mention objects, people, obstacles, distance, and "
+        "anything important that they should be aware of for navigation or safety. "
+        "Keep the response short and focused."
+    )
+
+    # --- OpenRouter Payload ---
+    payload = {
+        "model": "meta-llama/llama-4-maverick",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": question},
+                    {"type": "image_url", "image_url": {"url": image_data_url}}
+                ]
+            }
+        ]
+    }
+
+    # --- Call AI model ---
+    try:
+        response = requests.post(
+            API_URL,
+            headers={
+                "Authorization": f"Bearer {API_KEY}",
+                "Content-Type": "application/json"
+            },
+            data=json.dumps(payload)
+        )
+
+        if response.status_code == 200:
+            ai_response = response.json()
+            final_answer = ai_response['choices'][0]['message']['content']
+        else:
+            final_answer = f"API Error: {response.status_code}, {response.text}"
+
+    except Exception as e:
+        final_answer = f"Error while processing the image: {str(e)}"
+
+    # --- Convert AI text response to speech using gTTS ---
+    try:
+        tts_filename = f"tts_{uuid.uuid4().hex}.mp3"
+        tts_filepath = os.path.join(static_dir, tts_filename)
+
+        tts = gTTS(text=final_answer, lang='en')
+        tts.save(tts_filepath)
+
+        audio_url = f"https://{request.host}/static/{tts_filename}"
+    except Exception as e:
+        audio_url = None
+        print("TTS Error:", str(e))
+
+    # --- Optional location from request ---
+    latitude = request.form.get("latitude") or request.json.get("latitude")
+    longitude = request.form.get("longitude") or request.json.get("longitude")
+
+    # --- Prepare record for Firestore ---
+    record = {
+        "text_output": final_answer,
+        "timestamp": datetime.utcnow(),
+    }
+
+    if latitude and longitude:
+        try:
+            record["location"] = {
+                "latitude": float(latitude),
+                "longitude": float(longitude)
+            }
+        except ValueError:
+            print("Invalid latitude/longitude, skipping location.")
+
+    # --- Save to Firestore ---
+    try:
+        doc_ref = db.collection("image_history").document()
+        doc_ref.set(record)
+        print(f"Saved record to Firestore with ID: {doc_ref.id}")
+    except Exception as e:
+        print(f"Error saving to Firestore: {str(e)}")
+
+    # --- Return both text + audio link ---
+    return jsonify({
+        'response': final_answer,
+        'audio_url': audio_url
+    })
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
