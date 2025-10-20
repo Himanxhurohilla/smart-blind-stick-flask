@@ -41,7 +41,7 @@ def upload_image():
     # --- Save uploaded image temporarily ---
     static_dir = os.path.join(app.root_path, 'static')
     os.makedirs(static_dir, exist_ok=True)
-    image_path = os.path.join(static_dir, "temp.jpg")
+    image_path = os.path.join(static_dir, f"temp_{uuid.uuid4().hex}.jpg")
 
     try:
         image.save(image_path)
@@ -111,24 +111,11 @@ def upload_image():
         audio_url = None
         print("TTS Error:", str(e))
 
-    # --- Optional location from request ---
-    latitude = request.form.get("latitude") or request.json.get("latitude")
-    longitude = request.form.get("longitude") or request.json.get("longitude")
-
     # --- Prepare record for Firestore ---
     record = {
         "text_output": final_answer,
         "timestamp": datetime.utcnow(),
     }
-
-    if latitude and longitude:
-        try:
-            record["location"] = {
-                "latitude": float(latitude),
-                "longitude": float(longitude)
-            }
-        except ValueError:
-            print("Invalid latitude/longitude, skipping location.")
 
     # --- Save to Firestore ---
     try:
@@ -143,6 +130,7 @@ def upload_image():
         'response': final_answer,
         'audio_url': audio_url
     })
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
