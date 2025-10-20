@@ -7,7 +7,7 @@ import uuid
 from gtts import gTTS
 from datetime import datetime
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, db  # Use db for Realtime Database
 
 app = Flask(__name__, static_url_path='/static')
 
@@ -21,13 +21,16 @@ if not firebase_json:
     raise ValueError("FIREBASE_CONFIG environment variable is not set")
 
 cred = credentials.Certificate(json.loads(firebase_json))
-firebase_admin.initialize_app(cred)
-db = firestore.client()  # Firestore client
+
+# Initialize Realtime Database (replace with your Realtime DB URL)
+firebase_admin.initialize_app(cred, {
+    'databaseURL': 'https://smartstick-df0c6-default-rtdb.firebaseio.com/'
+})
 
 # --- Home Route ---
 @app.route('/')
 def home():
-    return "Smart Blind Stick Flask Server Running with TTS and Firestore Integration"
+    return "Smart Blind Stick Flask Server Running with TTS and Realtime Database Integration"
 
 # --- Upload Route ---
 @app.route('/upload', methods=['POST'])
@@ -111,19 +114,19 @@ def upload_image():
         audio_url = None
         print("TTS Error:", str(e))
 
-    # --- Prepare record for Firestore ---
+    # --- Prepare record for Realtime Database ---
     record = {
         "text_output": final_answer,
-        "timestamp": datetime.utcnow(),
+        "timestamp": datetime.utcnow().isoformat()  # store as ISO string
     }
 
-    # --- Save to Firestore ---
+    # --- Save to Realtime Database ---
     try:
-        doc_ref = db.collection("image_history").document()
-        doc_ref.set(record)
-        print(f"Saved record to Firestore with ID: {doc_ref.id}")
+        ref = db.reference('image_history')  # root node for history
+        ref.push(record)
+        print("Saved record to Realtime Database")
     except Exception as e:
-        print(f"Error saving to Firestore: {str(e)}")
+        print(f"Error saving to Realtime Database: {str(e)}")
 
     # --- Return both text + audio link ---
     return jsonify({
