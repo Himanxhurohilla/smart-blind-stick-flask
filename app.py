@@ -36,13 +36,11 @@ def home():
 @app.route('/upload', methods=['POST'])
 def upload_image():
     # --- Check for image ---
-    image_data = request.data
-if not image_data:
-    return jsonify({'error': 'No image received'}), 400
+    if 'image' not in request.files:
+    return jsonify({'error': 'No image found in request'}), 400
 
-image_path = os.path.join(static_dir, f"temp_{uuid.uuid4().hex}.jpg")
-with open(image_path, "wb") as f:
-    f.write(image_data)
+image = request.files['image']
+
 
 
     # --- Save uploaded image temporarily ---
