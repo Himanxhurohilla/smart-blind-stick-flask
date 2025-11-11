@@ -28,39 +28,38 @@ firebase_admin.initialize_app(cred, {
 })
 
 # --- Home Route ---
-@app.route('/')
-def home():
-    return "Smart Blind Stick Flask Server Running with TTS and Realtime Database Integration"
-
-# --- Upload Route ---
 @app.route('/upload', methods=['POST'])
 def upload_image():
     # --- Check for image ---
     if 'image' not in request.files:
-    return jsonify({'error': 'No image found in request'}), 400
+        return jsonify({'error': 'No image found in request'}), 400
 
-image = request.files['image']
-
-
+    image = request.files['image']
 
     # --- Save uploaded image temporarily ---
     static_dir = os.path.join(app.root_path, 'static')
     os.makedirs(static_dir, exist_ok=True)
     image_path = os.path.join(static_dir, f"temp_{uuid.uuid4().hex}.jpg")
+
     try:
         image.save(image_path)
     except Exception as e:
         return jsonify({'error': f"Failed to save image: {str(e)}"}), 500
 
-    # --- Convert image to Base64 for OpenRouter ---
+    # --- Convert image to Base64 ---
     try:
         with open(image_path, "rb") as img_file:
             encoded_image = base64.b64encode(img_file.read()).decode('utf-8')
         image_data_url = f"data:image/jpeg;base64,{encoded_image}"
-        try:
+    except Exception as e:
+        return jsonify({'error': f"Failed to encode image: {str(e)}"}), 500
+
+    # --- Delete temporary image file safely ---
+    try:
         os.remove(image_path)
     except:
         pass
+
     except Exception as e:
         return jsonify({'error': f"Failed to encode image: {str(e)}"}), 500
 
