@@ -45,7 +45,6 @@ def upload_image():
     static_dir = os.path.join(app.root_path, 'static')
     os.makedirs(static_dir, exist_ok=True)
     image_path = os.path.join(static_dir, f"temp_{uuid.uuid4().hex}.jpg")
-
     try:
         image.save(image_path)
     except Exception as e:
@@ -56,6 +55,10 @@ def upload_image():
         with open(image_path, "rb") as img_file:
             encoded_image = base64.b64encode(img_file.read()).decode('utf-8')
         image_data_url = f"data:image/jpeg;base64,{encoded_image}"
+        try:
+        os.remove(image_path)
+    except:
+        pass
     except Exception as e:
         return jsonify({'error': f"Failed to encode image: {str(e)}"}), 500
 
